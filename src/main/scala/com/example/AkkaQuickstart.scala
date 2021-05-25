@@ -1,142 +1,239 @@
-//#full-example
 package com.example
 
 import akka.http.scaladsl.model._
 import HttpMethods._
 import akka.http.scaladsl.model._
-import akka.http.scaladsl.model.headers.GenericHttpCredentials
-import akka.actor.typed.ActorRef
+import akka.http.scaladsl.model.headers.{GenericHttpCredentials, OAuth2BearerToken}
 import akka.actor.typed.ActorSystem
 import akka.actor.typed.Behavior
 import akka.actor.typed.scaladsl.Behaviors
-import com.example.GreeterMain.Setup
+import akka.http.scaladsl.Http
 
-import akka.http.scaladsl.client.RequestBuilding.Get
+import spray.json._
+import DefaultJsonProtocol._
 
-object PrintMyActorRefActor {
-  def apply(): Behavior[String] =
-    Behaviors.setup(context => new PrintMyActorRefActor(context))
+import scala.concurrent.{Await, ExecutionContextExecutor, Future}
+import scala.util.{Failure, Success}
+import akka.http.scaladsl.unmarshalling.Unmarshal
+import com.example.Getter.Start
+import com.example.AkkaQuickstart.getter
+
+import scala.util.matching.Regex
+import com.example.WordCollector.Tweet
+
+import java.io.FileInputStream
+import scala.language.postfixOps
+import scala.util.parsing.json.JSON
+
+object Getter {
+
+  final case class Start(val system: ActorSystem[Getter.Start], interval: Int, amount: Int, processor: ActorSystem[WordCollector.Tweet])
+
+  final val token: String = ???
+  final val requestUri: String = "https://api.twitter.com/2/tweets/search/recent?query=-is%3Aretweet%20duda%20lang:pl&tweet.fields=author_id&max_results=10"
+
+  def send_messages(system: ActorSystem[Getter.Start], processor1: ActorSystem[WordCollector.Tweet]): Unit = {
+    val authorization = headers.Authorization(OAuth2BearerToken(token))
+    val request = HttpRequest(GET, uri = requestUri, headers = Seq(authorization))
+    implicit val executionContext: ExecutionContextExecutor = system.executionContext
+
+    val responseFuture: Future[HttpResponse] = Http(system).singleRequest(request)
+    var result: List[String] = null
+    print("3")
+
+    responseFuture.onComplete {
+      case Success(res) => {
+        val messages: Future[String] = Unmarshal(res).to[String]
+        println("2")
+        messages.onComplete {
+          case Success(res2) => {
+            class CC[T] {
+              def unapply(a: Any): Option[T] = Some(a.asInstanceOf[T])
+            }
+            print("1")
+
+            object M extends CC[Map[String, Any]]
+            object L extends CC[List[Any]]
+            object D extends CC[String]
+
+            result = for {
+              Some(M(map)) <- List(JSON.parseFull(res2))
+              L(data) = map("data")
+              M(data_m) <- data
+              D(text) = data_m("text")
+            } yield {
+              text
+            }
+
+            for (tweet <- result) {
+              processor1 ! Tweet(tweet)
+            }
+          }
+          case Failure(_) => sys.error("something wrong")
+        }
+      }
+      case Failure(_) => sys.error("something wrong")
+    }
+  }
+
+  def apply(): Behavior[Start] = Behaviors.setup { context =>
+
+    //        val processor = context.spawn(WordCollector(), "processor")
+
+    //        processor ! Tweet()
+
+    Behaviors.receiveMessage { message =>
+      println(message.toString)
+      println("lol")
+      send_messages(message.system, message.processor)
+      Behaviors.same
+    }
+
+  }
 }
 
+//trait Processor {
+//  final case class Tweet(tweet: String)
+//}
 
-class Getter(context: ActorContext[String]) extends AbstractBehavior[String](context){
+object WordCollector {
+  final case class Tweet(tweet: String)
 
+  final case class SaveData(tweet: String)
 
-  override def onMessage(msg: String): Behavior[String] = {
-    get_messages(1,1)
-  }   
+  final val wordMap = collection.mutable.Map[String, Int]()
 
-  def get_messages(interval:Int, amount:Int) = {
-    // while(true){
-      // val token = 
-      // val validCredentials = BasicHttpCredentials("John", "p4ssw0rd")
-      val authorization = headers.Authorization(GenericHttpCredentials(token=token))
-      // val request = new Get(uri = "https://api.twitter.com/2/tweets/search/recent?query=duda lang:pl&tweet.fields=author_id&max_results=10")
-      val request = HttpRequest(GET, uri = "https://api.twitter.com/2/tweets/search/recent?query=duda lang:pl&tweet.fields=author_id&max_results=10",
-                                    headers = Seq(authorization))
-      println(request)
-      // request.add
+  def apply(): Behavior[Tweet] = Behaviors.receiveMessage { message =>
+    println("dostałem")
+    for (word <- message.tweet.split("\\s+")) {
+      val numberPattern: Regex = "^(?i)[a-ząćęłńśóżź]".r
 
-    // }
-  }
-  
-
-
-
-  def apply(): Behavior[Greet] = Behaviors.receive { (context, message) =>
-    context.log.info("Hello {}!", message.whom)
-    //#greeter-send-messages
-    message.replyTo ! Greeted(message.whom, context.self)
-    //#greeter-send-messages
+      numberPattern.findFirstMatchIn(word) match {
+        case Some(_) =>
+          //          println(word)
+          val result: Int = wordMap getOrElse(word, 0)
+          wordMap += (word -> (result + 1))
+        case None =>
+      }
+    }
+    //    println(message.tweet)
+    print(wordMap.keys.size)
+    wordMap.foreach { case (key: String, value: Int) => println(key + " " + value) }
+    for ((word, count) <- wordMap) {
+      println("1")
+      println(word + " " + count)
+    }
     Behaviors.same
   }
 }
 
-// //#greeter-actor
-// object Greeter {
-//   final case class Greet(whom: String, replyTo: ActorRef[Greeted])
-//   final case class Greeted(whom: String, from: ActorRef[Greet])
+object SwearAnalyzer {
+  sealed trait RoomCommand
 
-//   def apply(): Behavior[Greet] = Behaviors.receive { (context, message) =>
-//     context.log.info("Hello {}!", message.whom)
-//     //#greeter-send-messages
-//     message.replyTo ! Greeted(message.whom, context.self)
-//     //#greeter-send-messages
-//     Behaviors.same
-//   }
-// }
-//#greeter-actor
+  final case class Tweet(tweet: String) extends RoomCommand
 
-//#greeter-bot
-// object GreeterBot {
+  final case class LoadSwears(tweet: String) extends RoomCommand
 
-//   def apply(max: Int): Behavior[Greeter.Greeted] = {
-//     bot(0, max)
-//   }
+  final case class SaveData(tweet: String) extends RoomCommand
 
-//   private def bot(greetingCounter: Int, max: Int): Behavior[Greeter.Greeted] =
-//     Behaviors.receive { (context, message) =>
-//       val n = greetingCounter + 1
-//       context.log.info("Greeting {} for {}", n, message.whom)
-//       if (n == max) {
-//         Behaviors.stopped
-//       } else {
-//         message.from ! Greeter.Greet(message.whom, context.self)
-//         bot(n, max)
-//       }
-//     }
-// }
-//#greeter-bot
+  final val wordMap = collection.mutable.Map[String, Int]()
 
-object GreeterMain {
-  def apply(): Behavior[String] =
-    Behaviors.setup(context => new Main(context))
+  def apply() = Behaviors.receiveMessage[RoomCommand] { message =>
+    message match {
+      case Tweet(tweet) =>
+        println("dostałem")
+        for (word <- tweet.split("\\s+")) {
+          val numberPattern: Regex = "^(?i)[a-ząćęłńśóżź]".r
 
-}
-
-//#greeter-main
-class GreeterMain(context: ActorContext[String]) extends AbstractBehavior[String](context) {
-
-  final case class Setup(name: String)
-
-  override def onMessage(msg: String): Behavior[String] =
-    msg match {
-      case "dupa" =>
-        val getter = context.spawn(Getter(), "dupa2")
-        // println(s"First: $firstRef")
-        getter ! "dupa3"
-        this
+          numberPattern.findFirstMatchIn(word) match {
+            case Some(_) =>
+              //          println(word)
+              val result: Int = wordMap getOrElse(word, 0)
+              wordMap += (word -> (result + 1))
+            case None =>
+          }
+        }
+        //    println(message.tweet)
+        print(wordMap.keys.size)
+        wordMap.foreach { case (key: String, value: Int) => println(key + " " + value) }
+        for ((word, count) <- wordMap) {
+          println("1")
+          println(word + " " + count)
+        }
+        Behaviors.same
+      case LoadSwears(_) =>
+        val stream = new FileInputStream("../../../resources/wulgaryzmy.json")
+        val json = try {
+          JSON.parseFull(stream.toString)
+        } finally {
+          stream.close()
+        }
+        Behaviors.same
     }
 
-
-  // def apply(): Behavior[Setup] =
-  //   Behaviors.setup { context =>
-  //     //#create-actors
-  //     val getter = context.spawn(Getter(), "getter")
-  //     getter ! "dupa"
-
-  //     //#create-actors
-  //     // Behaviors.receiveMessage { message =>
-  //       //#create-actors
-  //       // val replyTo = context.spawn(GreeterBot(max = 3), message.name)
-  //       //#create-actors
-
-  //       // getter ! "dupa"
-  //       // Behaviors.same
-  //     // }
-  //   }
+  }
 }
-//#greeter-main
 
-//#main-class
+//
+////object
+////final case class Tweet(tweet: String)
+////class Processor2 extends Actor {
+////  override def receive: Receive =
+////}
+//
+////#main-class
 object AkkaQuickstart extends App {
-  //#actor-system
-  val main = ActorSystem(GreeterMain(), "AkkaQuickStart")
-  //#actor-system+
 
-  //#main-send-messages
-  main ! Setup("Charles")
-  //#main-send-messages
+  val stream = new FileInputStream("src/main/resources/wulgaryzmy.json")
+  //  val json = try {
+  //    JSON.parseFull(stream.toString)
+  //  } finally {
+  //    stream.close()
+  //  }
+
+//  val result2 = scala.io.Source.fromInputStream(stream).mkString.parseJson
+//  val resLust = result.toList
+//  println(resLust)
+  //  val jsonString = os.read("src/main/resources/wulgaryzmy.json")
+  //  val data = ujson.read(jsonString)
+  //  data("last_name") = "Poker Brat"
+  //  os.write(os.pwd/"tmp"/"poker_brat.json", data)
+
+
+  class CC[T] {
+    def unapply(a: Any): Option[T] = Some(a.asInstanceOf[T])
+  }
+
+  object M extends CC[Map[String, Any]]
+
+  object L extends CC[List[String]]
+
+  object D extends CC[String]
+
+//  println(scala.io.Source.fromInputStream(stream).mkString)
+
+  val result = for {
+    Some(M(map)) <- List(JSON.parseFull(scala.io.Source.fromInputStream(stream).mkString))
+    L(wulgaryzmy) = map("wulgaryzmy")
+    D(text) <- wulgaryzmy
+  } yield {
+    text
+  }
+
+  println(result.getClass.toString)
+
+  for (swear <- result) {
+    println(swear)
+  }
+
+
+  implicit val processor1: ActorSystem[WordCollector.Tweet] = ActorSystem(WordCollector(), "processor")
+  //  implicit val processor2: ActorSystem[WordCollector.Tweet] = ActorSystem(WordCollector(), "processor")
+  println("DUPA")
+
+  val processors = List(WordCollector)
+  implicit val getter: ActorSystem[Getter.Start] = ActorSystem(Getter(), "getter")
+  getter ! Start(system = getter, interval = 10, amount = 10, processor1)
+
+
 }
-//#main-class
-//#full-example
