@@ -7,24 +7,26 @@ import scala.util.parsing.json.JSON
 
 
 object SwearAnalyzer {
-  sealed trait RoomCommand
+  final case class Tweet(tweet: String) extends Message
 
-  final case class Tweet(tweet: String) extends RoomCommand
+  final case class LoadSwears(path: String) extends Message
 
-  final case class LoadSwears(path: String) extends RoomCommand
-
-  final case class SaveData() extends RoomCommand
+  final case class SaveData() extends Message
 
   final val swearSet = collection.mutable.Set[String]()
   var tweets: Int = 0
   var vulgarTweets: Int = 0
 
-  def apply() = Behaviors.receiveMessage[RoomCommand] { message =>
+  def save(): Unit = {
+
+  }
+
+  def apply():Behaviors.Receive[Message] = Behaviors.receiveMessage[Message] { message =>
     message match {
       case Tweet(tweet) =>
         tweets += 1
         if (tweet.split("\\s+")
-          .map(word => word.toLowerCase.dropWhile(c => ",.\";\'".indexOf(c) > 0))
+          .map(word => Filter.filterPunctuation(word))
           .map(word => Latinifier.latinify(word))
           .count(word => swearSet.contains(word)) > 0) {
           vulgarTweets += 1
