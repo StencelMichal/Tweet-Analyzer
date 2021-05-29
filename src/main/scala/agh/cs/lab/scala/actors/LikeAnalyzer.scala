@@ -1,6 +1,7 @@
-package agh.cs.lab.scala
+package agh.cs.lab.scala.actors
 
-import agh.cs.lab.scala.WordCollector.wordMap
+import agh.cs.lab.scala.utils.{Filter, ResultPrinter}
+import agh.cs.lab.scala.actorCommands.{ActorCommand, Message, Operation, SaveData, TweetWithLikes}
 import akka.actor.typed.Behavior
 import akka.actor.typed.scaladsl.Behaviors
 import spray.json.DefaultJsonProtocol.{IntJsonFormat, StringJsonFormat, jsonFormat1, mapFormat, tuple2Format}
@@ -13,25 +14,19 @@ import scala.util.matching.Regex
 
 object LikeAnalyzer {
 
-  final case class Tweet(tweet: String, likes: Int) extends Message
-
-  final case class SaveData() extends Operation
-
-  final case class Stop() extends Operation
-
   final val wordMap = collection.mutable.Map[String, (Int, Int)]()
 
   def save(): Unit = {
     case class Obj(count: Map[String, (Int, Int)])
     implicit val format: RootJsonFormat[Obj] = jsonFormat1(Obj)
 
-    val jsonStr = Obj(ListMap(wordMap.toSeq.sortBy(_._2._2):_*)).toJson
+    val jsonStr = Obj(ListMap(wordMap.toSeq.sortBy(_._2._2): _*)).toJson
 
-    ResultPrinter.print("src/main/data/like_analyzer/LikeAnalyzer_"+ new SimpleDateFormat("YYYYMMdd_HHmmss").format(new Date) +".json", jsonStr.toString())
+    ResultPrinter.print("src/main/data/like_analyzer/LikeAnalyzer_" + new SimpleDateFormat("YYYYMMdd_HHmmss").format(new Date) + ".json", jsonStr.toString())
   }
 
   def apply(): Behavior[ActorCommand] = Behaviors.receiveMessage[ActorCommand] {
-    case Tweet(tweet, likes) =>
+    case TweetWithLikes(tweet, likes) =>
       for (word <- tweet.split("\\s+")) {
         val numberPattern: Regex = "^(?i)[a-ząćęłńśóżź]".r
 
@@ -57,9 +52,9 @@ object LikeAnalyzer {
       //    }
       Behaviors.same
 
-        case SaveData() =>
-          save()
-        Behaviors.same
+    case SaveData() =>
+      save()
+      Behaviors.same
     //    case Stop() =>
   }
 }

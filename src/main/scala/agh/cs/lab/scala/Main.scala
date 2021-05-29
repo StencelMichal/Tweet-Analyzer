@@ -1,9 +1,11 @@
 package agh.cs.lab.scala
 
+import agh.cs.lab.scala.actorCommands.ActorCommand
 import akka.actor.typed.ActorSystem
-import Getter.Get
-import SwearAnalyzer.LoadSwears
-import agh.cs.lab.scala.Creator.Start
+import agh.cs.lab.scala.actors.Getter.Get
+import agh.cs.lab.scala.actors.SwearAnalyzer.LoadSwears
+import agh.cs.lab.scala.actors.Creator.Start
+import agh.cs.lab.scala.actors.{Creator, WordCollector}
 
 import scala.language.postfixOps
 

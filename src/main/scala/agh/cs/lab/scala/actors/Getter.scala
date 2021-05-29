@@ -1,31 +1,27 @@
-package agh.cs.lab.scala
-
+package agh.cs.lab.scala.actors
 
 import agh.cs.lab.scala.Main.creator
-import agh.cs.lab.scala.SwearAnalyzer.Tweet
-//import agh.cs.lab.scala.WordCollector.Tweet
-import akka.actor.typed.{ActorRef, ActorSystem, Behavior}
+import agh.cs.lab.scala.actorCommands.{ActorCommand, Tweet}
 import akka.actor.typed.scaladsl.Behaviors
+import akka.actor.typed.{ActorRef, ActorSystem, Behavior}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.HttpMethods.GET
-import akka.http.scaladsl.model.{HttpRequest, HttpResponse, headers}
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
+import akka.http.scaladsl.model.{HttpRequest, HttpResponse, headers}
 import akka.http.scaladsl.unmarshalling.Unmarshal
 
 import scala.concurrent.{ExecutionContextExecutor, Future}
-import scala.util.{Failure, Success}
 import scala.util.parsing.json.JSON
+import scala.util.{Failure, Success}
 
 object Getter {
 
-  final case class Get(system: ActorSystem[ActorCommand], interval: Int, amount: Int,
-                       wordCollector: ActorRef[ActorCommand], swearAnalyzer: ActorRef[ActorCommand])
+  final case class Get(system: ActorSystem[ActorCommand], interval: Int, amount: Int, actors: List[ActorRef[ActorCommand]]) extends ActorCommand
 
   final val token: String = ???
   final val requestUri: String = "https://api.twitter.com/2/tweets/search/recent?tweet.fields=author_id,public_metrics&query=\"*\"%20lang:pl%20-is%3Aretweet&max_results=100"
 
-  def send_messages(system: ActorSystem[ActorCommand], wordCollector: ActorRef[ActorCommand],
-                    swearAnalyzer: ActorRef[ActorCommand]): Unit = {
+  def send_messages(system: ActorSystem[ActorCommand], actors: List[ActorRef[ActorCommand]]): Unit = {
     val authorization = headers.Authorization(OAuth2BearerToken(token))
     val request = HttpRequest(GET, uri = requestUri, headers = Seq(authorization))
     implicit val executionContext: ExecutionContextExecutor = system.executionContext
@@ -56,8 +52,9 @@ object Getter {
             }
 
             for (tweet <- result) {
-              wordCollector ! WordCollector.Tweet(tweet)
-              swearAnalyzer ! SwearAnalyzer.Tweet(tweet)
+              for (actor <- actors) {
+                actor ! Tweet(tweet)
+              }
             }
           }
           case Failure(_) => sys.error("something wrong")
@@ -70,7 +67,7 @@ object Getter {
   def apply(query: String): Behavior[Get] = Behaviors.setup { context =>
     Behaviors.receiveMessage { message =>
       println(query)
-      send_messages(message.system, message.wordCollector, message.swearAnalyzer)
+      send_messages(message.system, message.actors)
       Behaviors.same
     }
 

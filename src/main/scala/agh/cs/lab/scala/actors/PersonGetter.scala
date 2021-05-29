@@ -1,28 +1,28 @@
-package agh.cs.lab.scala
+package agh.cs.lab.scala.actors
 
-import agh.cs.lab.scala.Main.{creator, processors}
-import agh.cs.lab.scala.SwearAnalyzer.Tweet
-import akka.actor.typed.{ActorRef, ActorSystem, Behavior}
+import agh.cs.lab.scala.Main.creator
+import agh.cs.lab.scala.actorCommands.{ActorCommand, TweetWithLikes}
 import akka.actor.typed.scaladsl.Behaviors
+import akka.actor.typed.{ActorRef, ActorSystem, Behavior}
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.HttpMethods.GET
-import akka.http.scaladsl.model.{HttpRequest, HttpResponse, headers}
 import akka.http.scaladsl.model.headers.OAuth2BearerToken
+import akka.http.scaladsl.model.{HttpRequest, HttpResponse, headers}
 import akka.http.scaladsl.unmarshalling.Unmarshal
 
 import scala.concurrent.{ExecutionContextExecutor, Future}
-import scala.util.{Failure, Success}
 import scala.util.parsing.json.JSON
+import scala.util.{Failure, Success}
 
 object PersonGetter {
 
-  final case class Get(system: ActorSystem[Creator.Start],amount:Int, interval: Int, tweetAuthorId: Int,
-                       likeAnalyzer: ActorRef[LikeAnalyzer.Tweet])
+  final case class Get(system: ActorSystem[Creator.Start], amount: Int, interval: Int, tweetAuthorId: Int,
+                       likeAnalyzer: ActorRef[ActorCommand])
 
   final val token: String = ???
 
   def send_messages(requestUri: String, system: ActorSystem[Creator.Start],
-                    likeAnalyzer: ActorRef[LikeAnalyzer.Tweet], interval: Int): Unit = {
+                    likeAnalyzer: ActorRef[ActorCommand], interval: Int): Unit = {
     var modifiedRequest = requestUri
     val authorization = headers.Authorization(OAuth2BearerToken(token))
 
@@ -31,7 +31,6 @@ object PersonGetter {
       implicit val executionContext: ExecutionContextExecutor = system.executionContext
 
       val responseFuture: Future[HttpResponse] = Http(system).singleRequest(request)
-      var result: List[String] = null
 
       responseFuture.onComplete {
         case Success(res) => {
@@ -51,7 +50,7 @@ object PersonGetter {
                 yield (text: String, metrics("like_count").toInt)
 
               for ((tweet, likes) <- result) {
-                likeAnalyzer ! LikeAnalyzer.Tweet(tweet, likes)
+                likeAnalyzer ! TweetWithLikes(tweet, likes)
               }
 
               val token = for (Some(M(map)) <- List(JSON.parseFull(res2)); M(meta) = map("meta"))
@@ -60,15 +59,6 @@ object PersonGetter {
               println(token.head)
               modifiedRequest = requestUri + "&pagination_token=" + token.head
 
-
-              //            println("PERSON GETTER")
-              //            for(res: (String, Int) <- result){
-              //              println(res._1)
-              //              println(res._2)
-              ////              println(res)
-              //            }
-
-
             }
             case Failure(_) => sys.error("something wrong")
           }
@@ -76,7 +66,7 @@ object PersonGetter {
         case Failure(_) => sys.error("something wrong")
       }
 
-      Thread.sleep(interval*1000)
+      Thread.sleep(interval * 1000)
     }
 
   }

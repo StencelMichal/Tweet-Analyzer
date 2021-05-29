@@ -1,4 +1,4 @@
-package agh.cs.lab.scala
+package agh.cs.lab.scala.utils
 
 object Latinifier {
   final val charMap = Map[Char, Char]('ą' -> 'a',

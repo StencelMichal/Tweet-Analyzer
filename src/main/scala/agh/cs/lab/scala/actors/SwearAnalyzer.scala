@@ -1,5 +1,7 @@
-package agh.cs.lab.scala
+package agh.cs.lab.scala.actors
 
+import agh.cs.lab.scala.utils.{Filter, Latinifier, ResultPrinter}
+import agh.cs.lab.scala.actorCommands.{ActorCommand, Message, Operation, SaveData, Tweet}
 import akka.actor.typed.scaladsl.Behaviors
 import spray.json.DefaultJsonProtocol.{DoubleJsonFormat, StringJsonFormat, jsonFormat1, mapFormat}
 import spray.json.{RootJsonFormat, enrichAny}
@@ -9,15 +11,9 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import scala.util.parsing.json.JSON
 
-
 object SwearAnalyzer {
-  final case class Tweet(message: String) extends Message
 
   final case class LoadSwears(message: String) extends Message
-
-  final case class SaveData() extends Operation
-
-  final case class Stop() extends Operation
 
   final val swearSet = collection.mutable.Set[String]()
   var tweets: Int = 0

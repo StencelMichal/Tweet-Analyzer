@@ -1,10 +1,9 @@
-package agh.cs.lab.scala
+package agh.cs.lab.scala.actors
 
-import agh.cs.lab.scala.Getter.Get
-import agh.cs.lab.scala.SwearAnalyzer.LoadSwears
-import akka.actor.typed.{ActorSystem, Behavior}
+import agh.cs.lab.scala.actorCommands.ActorCommand
+import agh.cs.lab.scala.actors.SwearAnalyzer.LoadSwears
 import akka.actor.typed.scaladsl.Behaviors
-
+import akka.actor.typed.{ActorSystem, Behavior}
 
 object Creator {
 
@@ -28,8 +27,8 @@ object Creator {
 
     Behaviors.receiveMessage {
       case Start(system, interval, amount) =>
-        inputProcessor ! InputProcessor.Start(likeAnalyzer, swearAnalyzer, wordCollector)
-        getter ! Get(system = system, interval, amount, wordCollector, swearAnalyzer)
+        inputProcessor ! InputProcessor.Start(List(likeAnalyzer, swearAnalyzer, wordCollector))
+        getter ! Getter.Get(system = system, interval, amount, List(wordCollector, swearAnalyzer))
         personGetter ! PersonGetter.Get(system = system, interval, amount, 202086424, likeAnalyzer)
         Behaviors.same
     }
