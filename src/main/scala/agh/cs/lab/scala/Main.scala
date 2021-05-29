@@ -12,7 +12,7 @@ object Main extends App {
 
 
   val processors = List(WordCollector)
-  implicit val creator: ActorSystem[Creator.Start] = ActorSystem(Creator(), "creator")
+  implicit val creator: ActorSystem[ActorCommand] = ActorSystem(Creator(), "creator")
 
   creator ! Start(system = creator, interval = 10, amount = 10)
 

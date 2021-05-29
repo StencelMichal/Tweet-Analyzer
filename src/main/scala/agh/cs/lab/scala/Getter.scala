@@ -18,14 +18,14 @@ import scala.util.parsing.json.JSON
 
 object Getter {
 
-  final case class Get(system: ActorSystem[Creator.Start], interval: Int, amount: Int,
-                       wordCollector: ActorRef[WordCollector.Tweet], swearAnalyzer: ActorRef[Message])
+  final case class Get(system: ActorSystem[ActorCommand], interval: Int, amount: Int,
+                       wordCollector: ActorRef[ActorCommand], swearAnalyzer: ActorRef[ActorCommand])
 
   final val token: String = ???
   final val requestUri: String = "https://api.twitter.com/2/tweets/search/recent?tweet.fields=author_id,public_metrics&query=\"*\"%20lang:pl%20-is%3Aretweet&max_results=100"
 
-  def send_messages(system: ActorSystem[Creator.Start], wordCollector: ActorRef[WordCollector.Tweet],
-                    swearAnalyzer: ActorRef[Tweet]): Unit = {
+  def send_messages(system: ActorSystem[ActorCommand], wordCollector: ActorRef[ActorCommand],
+                    swearAnalyzer: ActorRef[ActorCommand]): Unit = {
     val authorization = headers.Authorization(OAuth2BearerToken(token))
     val request = HttpRequest(GET, uri = requestUri, headers = Seq(authorization))
     implicit val executionContext: ExecutionContextExecutor = system.executionContext

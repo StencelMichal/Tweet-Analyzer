@@ -1,5 +1,4 @@
 package agh.cs.lab.scala
 
-trait Message {
-
+trait Message extends ActorCommand {
 }

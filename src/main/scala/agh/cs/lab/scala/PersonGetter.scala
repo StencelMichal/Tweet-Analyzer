@@ -20,7 +20,6 @@ object PersonGetter {
                        likeAnalyzer: ActorRef[LikeAnalyzer.Tweet])
 
   final val token: String = ???
-  //    var requestUri: String
 
   def send_messages(requestUri: String, system: ActorSystem[Creator.Start],
                     likeAnalyzer: ActorRef[LikeAnalyzer.Tweet], interval: Int): Unit = {

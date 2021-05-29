@@ -11,3 +11,10 @@ project/
 .metals
 .bloop
 .vscode
+
+src/main/data/like_analyzer/*
+!src/main/data/like_analyzer/.gitkeep
+src/main/data/swear_analyzer/*
+!src/main/data/swear_analyzer/.gitkeep
+src/main/data/word_collector/*
+!src/main/data/word_collector/.gitkeep
