@@ -1,7 +1,7 @@
 package agh.cs.lab.scala.actors
 
 import agh.cs.lab.scala.utils.{Filter, ResultPrinter}
-import agh.cs.lab.scala.actorCommands.{ActorCommand, Message, Operation, SaveData, TweetWithLikes}
+import agh.cs.lab.scala.actorCommands.{ActorCommand, Print, SaveData, TweetWithLikes}
 import akka.actor.typed.Behavior
 import akka.actor.typed.scaladsl.Behaviors
 import spray.json.DefaultJsonProtocol.{IntJsonFormat, StringJsonFormat, jsonFormat1, mapFormat, tuple2Format}
@@ -20,14 +20,23 @@ object LikeAnalyzer {
     case class Obj(count: Map[String, (Int, Int)])
     implicit val format: RootJsonFormat[Obj] = jsonFormat1(Obj)
 
-    val jsonStr = Obj(ListMap(wordMap.toSeq.sortBy(_._2._2): _*)).toJson
+    val jsonStr = Obj(ListMap(wordMap.toSeq.sortBy(_._2._2)(Ordering[Int].reverse): _*)).toJson
 
     ResultPrinter.print("src/main/data/like_analyzer/LikeAnalyzer_" + new SimpleDateFormat("YYYYMMdd_HHmmss").format(new Date) + ".json", jsonStr.toString())
   }
 
+  def printResults(): Unit = {
+    val result = new StringBuilder()
+    result ++= "\n[Najbardziej like'owane słowa]\n"
+    result ++= "   | Słowo | Liczba like'ów: | \n"
+    ListMap(wordMap.toSeq.sortBy(_._2._2): _*).slice(0, 10)
+      .zipWithIndex foreach { case (el, idx) => result ++= idx.toString + ". " + el._1 + " " + (el._2._2 / el._2._1) + "\n" }
+    println(result.toString)
+  }
+
   def apply(): Behavior[ActorCommand] = Behaviors.receiveMessage[ActorCommand] {
     case TweetWithLikes(tweet, likes) =>
-      for (word <- tweet.split("\\s+")) {
+      for (word <- tweet.split("\\s+").toSet[String]) {
         val numberPattern: Regex = "^(?i)[a-ząćęłńśóżź]".r
 
         numberPattern.findFirstMatchIn(word) match {
@@ -38,23 +47,13 @@ object LikeAnalyzer {
         }
       }
 
-      val maxLikes = wordMap.maxBy(obj => 1.0 * obj._2._2 / obj._2._1)
-      println(maxLikes._1)
-      println(maxLikes._2)
-      //    for ((tweet, (number, likes)) <- wordMap) {
-      //      println(tweet, number, likes)
-      //    }
-      //    print(wordMap.keys.size)
-      //    wordMap.foreach { case (key: String, value: Int) => println(key + " " + value) }
-      //    for ((word, count) <- wordMap) {
-      //      println("1")
-      //      println(word + " " + count)
-      //    }
       Behaviors.same
 
     case SaveData() =>
       save()
       Behaviors.same
-    //    case Stop() =>
+    case Print() =>
+      printResults()
+      Behaviors.same
   }
 }

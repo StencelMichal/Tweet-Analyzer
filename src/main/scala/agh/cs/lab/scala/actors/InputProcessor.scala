@@ -1,16 +1,16 @@
 package agh.cs.lab.scala.actors
 
-import agh.cs.lab.scala.actorCommands.{ActorCommand, SaveData, Stop}
+import agh.cs.lab.scala.actorCommands.{ActorCommand, Print, SaveData, Stop}
 import akka.actor.typed.scaladsl.Behaviors
-import akka.actor.typed.{ActorRef, Behavior}
+import akka.actor.typed.{ActorRef, ActorSystem, Behavior}
 
 object InputProcessor {
+  var running = true
 
+  final case class Start(actors: List[ActorRef[ActorCommand]], system: ActorSystem[ActorCommand]) extends ActorCommand
 
-  final case class Start(actors: List[ActorRef[ActorCommand]])
-
-  def processInput(actors: List[ActorRef[ActorCommand]]): Unit = {
-    while (1 == 1) {
+  def processInput(actors: List[ActorRef[ActorCommand]], creator: ActorRef[ActorCommand]): Unit = {
+    while (running) {
       val input = scala.io.StdIn.readLine()
       input.toLowerCase() match {
         case "save" =>
@@ -18,22 +18,25 @@ object InputProcessor {
             actor ! SaveData()
           }
         case "stop" =>
-          for (actor <- actors) {
-            actor ! Stop()
+          running = false
+          creator ! Stop()
+        case "print" =>
+          for(actor <- actors){
+            actor ! Print()
           }
       }
     }
   }
 
-  def apply(): Behavior[Start] = Behaviors.setup { context =>
+  def apply(): Behavior[ActorCommand] = Behaviors.setup { context =>
 
-    Behaviors.receiveMessage(message => {
-      message match {
-        case Start(actors) =>
-          processInput(actors)
-      }
-      Behaviors.same
-    })
+    Behaviors.receiveMessage {
+      case Start(actors, creator) =>
+        processInput(actors, creator)
+        Behaviors.same
+      case Stop() =>
+        Behaviors.stopped
+    }
 
   }
 }

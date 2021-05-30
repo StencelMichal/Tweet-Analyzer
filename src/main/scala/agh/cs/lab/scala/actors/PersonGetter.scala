@@ -1,7 +1,7 @@
 package agh.cs.lab.scala.actors
 
 import agh.cs.lab.scala.Main.creator
-import agh.cs.lab.scala.actorCommands.{ActorCommand, TweetWithLikes}
+import agh.cs.lab.scala.actorCommands.{ActorCommand, Stop, TweetWithLikes}
 import akka.actor.typed.scaladsl.Behaviors
 import akka.actor.typed.{ActorRef, ActorSystem, Behavior}
 import akka.http.scaladsl.Http
@@ -15,28 +15,27 @@ import scala.util.parsing.json.JSON
 import scala.util.{Failure, Success}
 
 object PersonGetter {
+  var running = true;
 
   final case class Get(system: ActorSystem[Creator.Start], amount: Int, interval: Int, tweetAuthorId: Int,
-                       likeAnalyzer: ActorRef[ActorCommand])
-
-  final val token: String = ???
+                       likeAnalyzer: ActorRef[ActorCommand], token:String) extends ActorCommand
 
   def send_messages(requestUri: String, system: ActorSystem[Creator.Start],
-                    likeAnalyzer: ActorRef[ActorCommand], interval: Int): Unit = {
+                    likeAnalyzer: ActorRef[ActorCommand], interval: Int, token: String): Unit = {
     var modifiedRequest = requestUri
     val authorization = headers.Authorization(OAuth2BearerToken(token))
 
-    while (1 == 1) {
+    while (running) {
       val request = HttpRequest(GET, uri = modifiedRequest, headers = Seq(authorization))
       implicit val executionContext: ExecutionContextExecutor = system.executionContext
 
       val responseFuture: Future[HttpResponse] = Http(system).singleRequest(request)
 
       responseFuture.onComplete {
-        case Success(res) => {
+        case Success(res) =>
           val messages: Future[String] = Unmarshal(res).to[String]
           messages.onComplete {
-            case Success(res2) => {
+            case Success(res2) =>
               class CC[T] {
                 def unapply(a: Any): Option[T] = Some(a.asInstanceOf[T])
               }
@@ -56,13 +55,9 @@ object PersonGetter {
               val token = for (Some(M(map)) <- List(JSON.parseFull(res2)); M(meta) = map("meta"))
                 yield meta("next_token")
 
-              println(token.head)
               modifiedRequest = requestUri + "&pagination_token=" + token.head
-
-            }
             case Failure(_) => sys.error("something wrong")
           }
-        }
         case Failure(_) => sys.error("something wrong")
       }
 
@@ -71,13 +66,20 @@ object PersonGetter {
 
   }
 
-  def apply(query: String): Behavior[Get] = Behaviors.setup { context =>
-    Behaviors.receiveMessage { message =>
-      val requestUri = "https://api.twitter.com/2/users/" + message.tweetAuthorId.toString + "/tweets?tweet.fields=public_metrics&max_results=" + message.amount.toString
-      println(query)
-      send_messages(requestUri, message.system, message.likeAnalyzer, message.interval)
-      Behaviors.same
+  def apply(): Behavior[ActorCommand] = Behaviors.setup { context =>
+    Behaviors.receiveMessage {
+      case Get(system, amount, interval, tweetAuthorId, likeAnalyzer, token) =>
+        val requestUri = "https://api.twitter.com/2/users/" + tweetAuthorId.toString + "/tweets?tweet.fields=public_metrics&max_results=" + amount.toString
+        val thread = new Thread {
+          override def run() {
+            send_messages(requestUri, system, likeAnalyzer, interval, token)
+          }
+        }
+        thread.start()
+        Behaviors.same
+      case Stop() =>
+        running = false
+        Behaviors.stopped
     }
-
   }
 }

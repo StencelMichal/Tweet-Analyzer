@@ -1,7 +1,7 @@
 package agh.cs.lab.scala.actors
 
 import agh.cs.lab.scala.utils.{Filter, Latinifier, ResultPrinter}
-import agh.cs.lab.scala.actorCommands.{ActorCommand, Message, Operation, SaveData, Tweet}
+import agh.cs.lab.scala.actorCommands.{ActorCommand, Print, SaveData, Tweet}
 import akka.actor.typed.scaladsl.Behaviors
 import spray.json.DefaultJsonProtocol.{DoubleJsonFormat, StringJsonFormat, jsonFormat1, mapFormat}
 import spray.json.{RootJsonFormat, enrichAny}
@@ -13,7 +13,7 @@ import scala.util.parsing.json.JSON
 
 object SwearAnalyzer {
 
-  final case class LoadSwears(message: String) extends Message
+  final case class LoadSwears(message: String) extends ActorCommand
 
   final val swearSet = collection.mutable.Set[String]()
   var tweets: Int = 0
@@ -28,6 +28,14 @@ object SwearAnalyzer {
     ResultPrinter.print("src/main/data/swear_analyzer/SwearAnalyzer_" + new SimpleDateFormat("YYYYMMdd_HHmmss").format(new Date) + ".json", jsonStr.toString())
   }
 
+  def printResults(): Unit = {
+    val result = new StringBuilder()
+    result ++= "\n[Ocena wulgarności Tweetów]\n"
+    result ++= "Wulgarne tweety: " + vulgarTweets + "\n"
+    result ++= "Procentowy udział: " + 1.0 * vulgarTweets / tweets * 100 + "%\n"
+    println(result.toString())
+  }
+
   def apply(): Behaviors.Receive[ActorCommand] = Behaviors.receiveMessage[ActorCommand] {
     case Tweet(tweet) =>
       tweets += 1
@@ -36,10 +44,7 @@ object SwearAnalyzer {
         .map(word => Latinifier.latinify(word))
         .count(word => swearSet.contains(word)) > 0) {
         vulgarTweets += 1
-        println(tweet)
       }
-      println("vulgar", vulgarTweets)
-      println("Ratio: " + 1.0 * vulgarTweets / tweets * 100 + "%")
 
       Behaviors.same
     case LoadSwears(path) =>
@@ -68,6 +73,9 @@ object SwearAnalyzer {
       Behaviors.same
     case SaveData() =>
       save()
+      Behaviors.same
+    case Print() =>
+      printResults()
       Behaviors.same
   }
 }
